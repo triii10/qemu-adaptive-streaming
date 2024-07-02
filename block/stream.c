@@ -43,11 +43,16 @@ typedef struct StreamBlockJob {
     bool bs_read_only;
 } StreamBlockJob;
 
+
+// This function is called if an block is allocated in an underlying image, then it needs to be
+// copied to the active layer. This function does that copy.
 static int coroutine_fn stream_populate(BlockBackend *blk,
                                         int64_t offset, uint64_t bytes)
 {
     assert(bytes < SIZE_MAX);
-
+    // Ensures a range of bytes from a block backend is prefetched. 
+    // Prefetching is a technique used to load data into a cache or buffer before it is actually needed, 
+    // to improve performance and reduce latency during data access.
     return blk_co_preadv(blk, offset, bytes, NULL, BDRV_REQ_PREFETCH);
 }
 
@@ -152,6 +157,8 @@ static void stream_clean(Job *job)
     g_free(s->backing_file_str);
 }
 
+// Looks like this function runs the streaming process as per the name.
+
 static int coroutine_fn stream_run(Job *job, Error **errp)
 {
     StreamBlockJob *s = container_of(job, StreamBlockJob, common.job);
@@ -175,7 +182,17 @@ static int coroutine_fn stream_run(Job *job, Error **errp)
     }
     job_progress_set_remaining(&s->common.job, len);
 
+
+    // Till this point, all that has been done is basically 
+    // initialize some variables, and get the unfiltered block state and it's length
+    // Now entering the main streaming loop. 
     for ( ; offset < len; offset += n) {
+
+        // Reminder - 
+        // offset - current offset
+        // len - to track length of the block device
+        // n - number of bytes processed
+        // Every iteration of the loop is going to increment the offset by number of bytes processed
         bool copy;
         int ret;
 
@@ -187,6 +204,9 @@ static int coroutine_fn stream_run(Job *job, Error **errp)
             break;
         }
 
+        // From above block, it looks like common.job stores the state of the job.
+        // If it can be cancelled by the user, then there must be a way to "adaptively pause" it
+        // So where will this change of state go? Need to figure that out.
         copy = false;
 
         WITH_GRAPH_RDLOCK_GUARD() {
@@ -207,13 +227,19 @@ static int coroutine_fn stream_run(Job *job, Error **errp)
                 }
 
                 copy = (ret > 0);
+
+                /* Display the IOPS calculated */
+                qemu_log("%ld,%f\n", qemu_clock_get_ns(QEMU_CLOCK_REALTIME), iops_tracker_get_iops(unfiltered_bs->iops_tracker, &unfiltered_bs->iops_lock));
             }
         }
         trace_stream_one_iteration(s, offset, n, ret);
         if (copy) {
+            // If it enters this block means the allocated area is in the intermediate images
+            // In that case, copy the blocks to the active image
             ret = stream_populate(s->blk, offset, n);
         }
         if (ret < 0) {
+            // <0 means there is an error
             BlockErrorAction action =
                 block_job_error_action(&s->common, s->on_error, true, -ret);
             if (action == BLOCK_ERROR_ACTION_STOP) {

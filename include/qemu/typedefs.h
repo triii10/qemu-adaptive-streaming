@@ -117,7 +117,7 @@ typedef struct VirtIODevice VirtIODevice;
 typedef struct Visitor Visitor;
 typedef struct VMChangeStateEntry VMChangeStateEntry;
 typedef struct VMStateDescription VMStateDescription;
-
+typedef struct IOPSTracker IOPSTracker;
 /*
  * Pointer types
  * Such typedefs should be limited to cases where the typedef's users

@@ -28,6 +28,7 @@
 #include "block/block-common.h"
 #include "block/block-global-state.h"
 #include "block/snapshot.h"
+// #include "block/iops_tracker.h"
 #include "qemu/iov.h"
 #include "qemu/rcu.h"
 #include "qemu/stats64.h"
@@ -1257,6 +1258,10 @@ struct BlockDriverState {
 
     /* array of write pointers' location of each zone in the zoned device. */
     BlockZoneWps *wps;
+
+    /* Stucture to track the IOPS per drive*/
+    QemuMutex iops_lock;
+    IOPSTracker *iops_tracker;
 };
 
 struct BlockBackendRootState {
@@ -1313,6 +1318,31 @@ void bdrv_parse_filename_strip_prefix(const char *filename, const char *prefix,
 int bdrv_check_qiov_request(int64_t offset, int64_t bytes,
                             QEMUIOVector *qiov, size_t qiov_offset,
                             Error **errp);
+
+
+/*
+ * IOPS Tracker
+ *
+ * @operations: Number of I/O operations
+ * @start_time_ns: Start time of the IOPS tracking in nanoseconds
+ */
+typedef struct IOPSTracker{
+    int64_t operations;      // Number of I/O operations
+    int64_t start_time_ns;   // Start time in nanoseconds
+} IOPSTracker;
+
+
+/* Initialize the IOPS tracker for each device */
+IOPSTracker* iops_tracker_new(void);
+
+/* Initialize the IOPS tracker for each device */
+void iops_tracker_init(IOPSTracker *tracker);
+
+/* Update the tracker whenever each ops is performed */
+void iops_tracker_update(IOPSTracker *tracker, int64_t operations, QemuMutex*);
+
+/* Calculate the IO per second and re-initialize the tracker to 0 */
+double iops_tracker_get_iops(IOPSTracker *tracker, QemuMutex*);
 
 #ifdef _WIN32
 int is_windows_drive(const char *filename);

@@ -235,4 +235,8 @@ bool block_job_is_internal(BlockJob *job);
  */
 const BlockJobDriver *block_job_driver(BlockJob *job);
 
+/* Trilok's function to implement adaptive pause here
+*/
+void block_job_adaptive_pause(BlockJob *job, BlockDriverState* bs);
+
 #endif

@@ -204,6 +204,10 @@ static int coroutine_fn stream_run(Job *job, Error **errp)
             break;
         }
 
+        // !!! Just like there is a ratelimit method above, I can add a pause method here to pause the jobs
+        // Can pass the start time of the job and pause it every 10 seconds.
+        block_job_adaptive_pause(&s->common, unfiltered_bs);
+
         // From above block, it looks like common.job stores the state of the job.
         // If it can be cancelled by the user, then there must be a way to "adaptively pause" it
         // So where will this change of state go? Need to figure that out.
@@ -229,7 +233,6 @@ static int coroutine_fn stream_run(Job *job, Error **errp)
                 copy = (ret > 0);
 
                 /* Display the IOPS calculated */
-                qemu_log("%ld,%f\n", qemu_clock_get_ns(QEMU_CLOCK_REALTIME), iops_tracker_get_iops(unfiltered_bs->iops_tracker, &unfiltered_bs->iops_lock));
             }
         }
         trace_stream_one_iteration(s, offset, n, ret);
@@ -375,6 +378,7 @@ void stream_start(const char *job_id, BlockDriverState *bs,
         cor_filter_bs->implicit = true;
     }
 
+    // The job gets created here. Important function
     s = block_job_create(job_id, &stream_job_driver, NULL, cor_filter_bs,
                          0, BLK_PERM_ALL,
                          speed, creation_flags, NULL, NULL, errp);
@@ -436,6 +440,10 @@ void stream_start(const char *job_id, BlockDriverState *bs,
     s->target_bs = bs;
     s->bs_read_only = bs_read_only;
 
+    // This is where the job actually starts
+    // There are functions like job_pause to actually pause the job
+    // We currently have the mechanism to at least measure the IOPS (theoratically)
+    // !! As a prototype, try to pause the job every 10 seconds.
     s->on_error = on_error;
     trace_stream_start(bs, base, s);
     job_start(&s->common.job);

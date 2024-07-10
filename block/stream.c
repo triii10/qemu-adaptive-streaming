@@ -181,7 +181,11 @@ static int coroutine_fn stream_run(Job *job, Error **errp)
         }
     }
     job_progress_set_remaining(&s->common.job, len);
-
+    
+    // Start IO tracking
+    unfiltered_bs->track_io = true;
+    if (unfiltered_bs->track_io)
+        qemu_log("IO tracking started\n");
 
     // Till this point, all that has been done is basically 
     // initialize some variables, and get the unfiltered block state and it's length
@@ -264,6 +268,11 @@ static int coroutine_fn stream_run(Job *job, Error **errp)
         }
     }
 
+    // Stop IO tracking
+    unfiltered_bs->track_io = false;
+    if (!unfiltered_bs->track_io)
+        qemu_log("IO tracking stopped\n");
+        
     /* Do not remove the backing file if an error was there but ignored. */
     return error;
 }

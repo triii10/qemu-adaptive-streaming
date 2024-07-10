@@ -1821,8 +1821,8 @@ int coroutine_fn bdrv_co_preadv_part(BdrvChild *child,
                               qiov, qiov_offset, flags);
     tracked_request_end(&req);
     bdrv_padding_finalize(&pad);
-    if (bs->iops_tracker != NULL)
-        iops_tracker_update(bs->iops_tracker, 1, &bs->iops_lock);
+    if (bs->track_io)
+        iops_tracker_update(bs->iops_tracker, bytes, &bs->iops_lock);
 
 fail:
     bdrv_dec_in_flight(bs);
@@ -2307,8 +2307,8 @@ out:
     tracked_request_end(&req);
     bdrv_dec_in_flight(bs);
 
-    if (bs->iops_tracker != NULL)
-        iops_tracker_update(bs->iops_tracker, 1, &bs->iops_lock);
+    if (bs->track_io)
+        iops_tracker_update(bs->iops_tracker, bytes, &bs->iops_lock);
 
     return ret;
 }

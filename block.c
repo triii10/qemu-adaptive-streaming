@@ -426,6 +426,7 @@ BlockDriverState *bdrv_new(void)
     bs->refcnt = 1;
     bs->aio_context = qemu_get_aio_context();
     bs->iops_tracker = iops_tracker_new();
+    bs->track_io = false;
 
     qemu_co_queue_init(&bs->flush_queue);
 
@@ -8447,26 +8448,31 @@ IOPSTracker *iops_tracker_new(void)
 /* Initialize the IOPS tracker for each device */
 void iops_tracker_init(IOPSTracker *tracker) {
     tracker->operations = 0;
+    tracker->io_size = 0;
     tracker->start_time_ns = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
 }
 
 /* Update the tracker whenever each ops is performed */
-void iops_tracker_update(IOPSTracker *tracker, int64_t operations, QemuMutex *mutex) 
+void iops_tracker_update(IOPSTracker *tracker, int64_t block_size, QemuMutex *mutex) 
 {
     qemu_mutex_lock(mutex);
-    tracker->operations += operations;
+    // tracker->operations++;
+    tracker->io_size += block_size;
     qemu_mutex_unlock(mutex);
 }
 
 /* Calculate the IO per second and re-initialize the tracker to 0 */
-double iops_tracker_get_iops(IOPSTracker *tracker, QemuMutex *mutex) 
+double iops_tracker_get_throughput(IOPSTracker *tracker, QemuMutex *mutex) 
 {
     qemu_mutex_lock(mutex);
     int64_t now_ns = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
     int64_t elapsed_ns = now_ns - tracker->start_time_ns;
-    double elapsed_sec = (double)elapsed_ns / 1e9;  // Convert nanoseconds to seconds
-    double iops = tracker->operations / elapsed_sec;
+
+    // Later on, think about calculating throughput per ns instead of sec
+    // double elapsed_sec = (double)elapsed_ns / 1e9;  // Convert nanoseconds to seconds
+    // double iops = tracker->operations / elapsed_sec;
+    double throughput = (double)tracker->io_size / elapsed_ns;
     qemu_mutex_unlock(mutex);
     iops_tracker_init(tracker);
-    return iops;
+    return throughput;
 }

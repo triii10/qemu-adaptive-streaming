@@ -1259,6 +1259,7 @@ struct BlockDriverState {
     /* Stucture to track the IOPS per drive*/
     QemuMutex iops_lock;
     IOPSTracker *iops_tracker;
+    bool track_io;
 };
 
 struct BlockBackendRootState {
@@ -1325,6 +1326,7 @@ int bdrv_check_qiov_request(int64_t offset, int64_t bytes,
  */
 typedef struct IOPSTracker{
     int64_t operations;      // Number of I/O operations
+    int64_t io_size;         // Total IO size since start
     int64_t start_time_ns;   // Start time in nanoseconds
 } IOPSTracker;
 
@@ -1336,10 +1338,10 @@ IOPSTracker* iops_tracker_new(void);
 void iops_tracker_init(IOPSTracker *tracker);
 
 /* Update the tracker whenever each ops is performed */
-void iops_tracker_update(IOPSTracker *tracker, int64_t operations, QemuMutex*);
+void iops_tracker_update(IOPSTracker *tracker, int64_t block_size, QemuMutex*);
 
 /* Calculate the IO per second and re-initialize the tracker to 0 */
-double iops_tracker_get_iops(IOPSTracker *tracker, QemuMutex*);
+double iops_tracker_get_throughput(IOPSTracker *tracker, QemuMutex*);
 
 #ifdef _WIN32
 int is_windows_drive(const char *filename);

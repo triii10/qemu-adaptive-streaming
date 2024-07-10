@@ -635,20 +635,11 @@ AioContext *block_job_get_aio_context(BlockJob *job)
 */
 void block_job_adaptive_pause(BlockJob *job, BlockDriverState* bs)
 {
-    uint64_t delay_ns = 10*1000000000LL;
-
-    /*
-     * Sleep at least once. If the job is reentered early, keep waiting until
-     * we've waited for the full time that is necessary to keep the job at the
-     * right speed.
-     *
-     * Make sure to recalculate the delay after each (possibly interrupted)
-     * sleep because the speed can change while the job has yielded.
-     */
+    uint64_t delay_ns = 10*1000000000ULL;
     do {
-        double current_iops = iops_tracker_get_iops(bs->iops_tracker, &bs->iops_lock);
-        if (current_iops > 10000) {
-            qemu_log("Current IOPS is above 10000: %f at time %ld, PAUSING JOB\n", current_iops, qemu_clock_get_ns(QEMU_CLOCK_REALTIME));
+        double current_throughput = iops_tracker_get_throughput(bs->iops_tracker, &bs->iops_lock);
+        if (current_throughput > 2) {
+            qemu_log("Current throughput per nanosecond is above 2: %f at time %ld, PAUSING JOB\n", current_throughput, qemu_clock_get_ns(QEMU_CLOCK_REALTIME));
             job_sleep_ns(&job->job, delay_ns);
         }
         else

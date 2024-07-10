@@ -2288,8 +2288,15 @@ void qmp_block_stream(const char *job_id, const char *device,
                       const char *filter_node_name,
                       bool has_auto_finalize, bool auto_finalize,
                       bool has_auto_dismiss, bool auto_dismiss,
+                      bool has_adaptive_stream, bool adaptive_stream, 
+                      bool has_adaptive_threshold, int64_t adaptive_threshold, 
+                      bool has_pause_time, int64_t pause_time,
                       Error **errp)
 {
+
+
+    qemu_log("block_stream: device=%s base=%s speed=%ld adaptive=%d adaptive-threshold=%ld pause-time=%ld\n",
+             device, base ? base : "", speed, adaptive_stream, adaptive_threshold, pause_time);
     BlockDriverState *bs, *iter, *iter_end;
     BlockDriverState *base_bs = NULL;
     BlockDriverState *bottom_bs = NULL;
@@ -2410,7 +2417,9 @@ void qmp_block_stream(const char *job_id, const char *device,
     stream_start(job_id, bs, base_bs, backing_file,
                  backing_mask_protocol,
                  bottom_bs, job_flags, has_speed ? speed : 0, on_error,
-                 filter_node_name, &local_err);
+                 filter_node_name, 
+                 adaptive_stream, adaptive_threshold, pause_time,
+                 &local_err);
     if (local_err) {
         error_propagate(errp, local_err);
         return;

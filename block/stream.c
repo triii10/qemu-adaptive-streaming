@@ -41,6 +41,9 @@ typedef struct StreamBlockJob {
     char *backing_file_str;
     bool backing_mask_protocol;
     bool bs_read_only;
+    bool adaptive_stream;
+    int64_t adaptive_threshold;
+    int64_t pause_time;
 } StreamBlockJob;
 
 
@@ -210,7 +213,8 @@ static int coroutine_fn stream_run(Job *job, Error **errp)
 
         // !!! Just like there is a ratelimit method above, I can add a pause method here to pause the jobs
         // Can pass the start time of the job and pause it every 10 seconds.
-        block_job_adaptive_pause(&s->common, unfiltered_bs);
+        if (s->adaptive_stream) 
+            block_job_adaptive_pause(&s->common, unfiltered_bs, s->adaptive_threshold, s->pause_time);
 
         // From above block, it looks like common.job stores the state of the job.
         // If it can be cancelled by the user, then there must be a way to "adaptively pause" it
@@ -296,6 +300,7 @@ void stream_start(const char *job_id, BlockDriverState *bs,
                   int creation_flags, int64_t speed,
                   BlockdevOnError on_error,
                   const char *filter_node_name,
+                  bool adaptive_stream, int64_t adaptive_threshold, int64_t pause_time,
                   Error **errp)
 {
     StreamBlockJob *s = NULL;
@@ -448,6 +453,9 @@ void stream_start(const char *job_id, BlockDriverState *bs,
     s->cor_filter_bs = cor_filter_bs;
     s->target_bs = bs;
     s->bs_read_only = bs_read_only;
+    s->adaptive_stream = adaptive_stream;
+    s->adaptive_threshold = adaptive_threshold;
+    s->pause_time = pause_time;
 
     // This is where the job actually starts
     // There are functions like job_pause to actually pause the job

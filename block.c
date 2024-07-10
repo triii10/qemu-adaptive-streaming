@@ -8469,9 +8469,9 @@ double iops_tracker_get_throughput(IOPSTracker *tracker, QemuMutex *mutex)
     int64_t elapsed_ns = now_ns - tracker->start_time_ns;
 
     // Later on, think about calculating throughput per ns instead of sec
-    // double elapsed_sec = (double)elapsed_ns / 1e9;  // Convert nanoseconds to seconds
+    double elapsed_sec = (double)elapsed_ns / 1e9;  // Convert nanoseconds to seconds
     // double iops = tracker->operations / elapsed_sec;
-    double throughput = (double)tracker->io_size / elapsed_ns;
+    double throughput = tracker->io_size / elapsed_sec;
     qemu_mutex_unlock(mutex);
     iops_tracker_init(tracker);
     return throughput;

@@ -2853,6 +2853,13 @@
 #     disappear from the query list without user intervention.
 #     Defaults to true.  (Since 3.1)
 #
+# @adaptive-stream: If true, the stream job will pause during periods of high 
+#     I/O activity.
+#
+# @adaptive-threshold: The maximum bytes per second to tolerate before streaming is paused
+#
+# @pause-time: The number of seconds to wait before resuming streaming after pausing
+#
 # Errors:
 #     - If @device does not exist, DeviceNotFound.
 #
@@ -2872,7 +2879,8 @@
             '*bottom': 'str',
             '*speed': 'int', '*on-error': 'BlockdevOnError',
             '*filter-node-name': 'str',
-            '*auto-finalize': 'bool', '*auto-dismiss': 'bool' },
+            '*auto-finalize': 'bool', '*auto-dismiss': 'bool',
+            '*adaptive-stream': 'bool', '*adaptive-threshold': 'int', '*pause-time': 'int' },
   'allow-preconfig': true }
 
 ##

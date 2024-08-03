@@ -571,12 +571,17 @@ void job_enter(Job *job)
  */
 static void coroutine_fn job_do_yield_locked(Job *job, uint64_t ns)
 {
+    // Need to have some parameter here to update the state of the job to denote that it is paused
     AioContext *next_aio_context;
 
     if (ns != -1) {
         timer_mod(&job->sleep_timer, ns);
     }
     job->busy = false;
+    
+    // Store Prev status
+    JobStatus prev_status = job->status;
+    job_state_transition_locked(job, JOB_STATUS_PAUSED);
     job_event_idle_locked(job);
     job_unlock();
     qemu_coroutine_yield();
@@ -595,6 +600,7 @@ static void coroutine_fn job_do_yield_locked(Job *job, uint64_t ns)
         next_aio_context = job->aio_context;
     }
 
+    job_state_transition_locked(job, prev_status);
     /* Set by job_enter_cond_locked() before re-entering the coroutine.  */
     assert(job->busy);
 }
@@ -633,6 +639,7 @@ static void coroutine_fn job_pause_point_locked(Job *job)
         job->driver->resume(job);
         job_lock();
     }
+    qemu_log("job status: %d\n", job->status);
 }
 
 void coroutine_fn job_pause_point(Job *job)

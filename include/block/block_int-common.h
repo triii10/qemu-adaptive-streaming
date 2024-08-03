@@ -1325,23 +1325,37 @@ int bdrv_check_qiov_request(int64_t offset, int64_t bytes,
  * @start_time_ns: Start time of the IOPS tracking in nanoseconds
  */
 typedef struct IOPSTracker{
-    int64_t operations;      // Number of I/O operations
-    int64_t io_size;         // Total IO size since start
+    // int64_t operations;      // Number of I/O operations
+    int64_t rio_size;         // Total read IO size since start
+    int64_t wio_size;         // Total read IO size since start
     int64_t start_time_ns;   // Start time in nanoseconds
+    int64_t total_wait_time_ns; // Total wait time in nanoseconds
 } IOPSTracker;
 
 
-/* Initialize the IOPS tracker for each device */
-IOPSTracker* iops_tracker_new(void);
+// /* Initialize the IOPS tracker for each device */
+// IOPSTracker* iops_tracker_new(void);
 
-/* Initialize the IOPS tracker for each device */
-void iops_tracker_init(IOPSTracker *tracker);
+// /* Initialize the IOPS tracker for each device */
+// void iops_tracker_init(IOPSTracker *tracker);
 
-/* Update the tracker whenever each ops is performed */
-void iops_tracker_update(IOPSTracker *tracker, int64_t block_size, QemuMutex*);
+// /* Update the tracker whenever each ops is performed */
+// void iops_tracker_update_read(IOPSTracker *tracker, int64_t block_size, QemuMutex*);
 
-/* Calculate the IO per second and re-initialize the tracker to 0 */
-double iops_tracker_get_throughput(IOPSTracker *tracker, QemuMutex*);
+// /* Update the tracker whenever each ops is performed */
+// void iops_tracker_update_write(IOPSTracker *tracker, int64_t block_size, QemuMutex*);
+
+// /* Calculate the IO per second and re-initialize the tracker to 0 */
+// double iops_tracker_get_rthroughput(IOPSTracker *tracker, QemuMutex*);
+
+// /* Calculate the IO per second and re-initialize the tracker to 0 */
+// double iops_tracker_get_wthroughput(IOPSTracker *tracker, QemuMutex*);
+
+// /* Calculate the IO per second and re-initialize the tracker to 0 */
+// double iops_tracker_get_rwthroughput(IOPSTracker *tracker, QemuMutex*);
+
+// /* Calculate the total wait time */
+// int64_t iops_update_wait_time(IOPSTracker *tracker, int64_t pause_time, QemuMutex *mutex);
 
 #ifdef _WIN32
 int is_windows_drive(const char *filename);

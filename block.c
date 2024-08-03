@@ -426,7 +426,7 @@ BlockDriverState *bdrv_new(void)
     bs->refcnt = 1;
     bs->aio_context = qemu_get_aio_context();
     bs->iops_tracker = iops_tracker_new();
-    bs->track_io = false;
+    disable_iops_tracker(bs);
 
     qemu_co_queue_init(&bs->flush_queue);
 
@@ -8438,41 +8438,89 @@ void bdrv_bsc_fill(BlockDriverState *bs, int64_t offset, int64_t bytes)
 }
 
 
-IOPSTracker *iops_tracker_new(void)
-{
-    IOPSTracker *tracker = g_new0(IOPSTracker, 1);
-    iops_tracker_init(tracker);
-    return tracker;
-}
+// IOPSTracker *iops_tracker_new(void)
+// {
+//     IOPSTracker *tracker = g_new0(IOPSTracker, 1);
+//     iops_tracker_init(tracker);
+//     return tracker;
+// }
 
-/* Initialize the IOPS tracker for each device */
-void iops_tracker_init(IOPSTracker *tracker) {
-    tracker->operations = 0;
-    tracker->io_size = 0;
-    tracker->start_time_ns = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
-}
+// /* Initialize the IOPS tracker for each device */
+// void iops_tracker_init(IOPSTracker *tracker) {
+//     // tracker->operations = 0;
+//     tracker->rio_size = 0;
+//     tracker->wio_size = 0;
+//     tracker->start_time_ns = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
+//     tracker->total_wait_time_ns = 0;
+// }
 
-/* Update the tracker whenever each ops is performed */
-void iops_tracker_update(IOPSTracker *tracker, int64_t block_size, QemuMutex *mutex) 
-{
-    qemu_mutex_lock(mutex);
-    // tracker->operations++;
-    tracker->io_size += block_size;
-    qemu_mutex_unlock(mutex);
-}
+// /* Update the tracker whenever each ops is performed */
+// void iops_tracker_update_read(IOPSTracker *tracker, int64_t block_size, QemuMutex *mutex) 
+// {
+//     qemu_mutex_lock(mutex);
+//     tracker->rio_size += block_size;
+//     qemu_mutex_unlock(mutex);
+// }
 
-/* Calculate the IO per second and re-initialize the tracker to 0 */
-double iops_tracker_get_throughput(IOPSTracker *tracker, QemuMutex *mutex) 
-{
-    qemu_mutex_lock(mutex);
-    int64_t now_ns = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
-    int64_t elapsed_ns = now_ns - tracker->start_time_ns;
+// /* Update the tracker whenever each ops is performed */
+// void iops_tracker_update_write(IOPSTracker *tracker, int64_t block_size, QemuMutex *mutex) 
+// {
+//     qemu_mutex_lock(mutex);
+//     tracker->wio_size += block_size;
+//     qemu_mutex_unlock(mutex);
+// }
 
-    // Later on, think about calculating throughput per ns instead of sec
-    double elapsed_sec = (double)elapsed_ns / 1e9;  // Convert nanoseconds to seconds
-    // double iops = tracker->operations / elapsed_sec;
-    double throughput = tracker->io_size / elapsed_sec;
-    qemu_mutex_unlock(mutex);
-    iops_tracker_init(tracker);
-    return throughput;
-}
+// /* Calculate the IO per second and re-initialize the tracker to 0 */
+// double iops_tracker_get_rthroughput(IOPSTracker *tracker, QemuMutex *mutex) 
+// {
+//     double throughput = 0;
+//     int64_t now_ns = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
+
+//     qemu_mutex_lock(mutex);
+//     throughput = tracker->rio_size * 1e9 / (now_ns - tracker->start_time_ns);
+//     tracker->rio_size = 0;
+//     tracker->start_time_ns = now_ns;
+//     qemu_mutex_unlock(mutex);
+    
+//     return throughput;
+// }
+
+// /* Calculate the IO per second and re-initialize the tracker to 0 */
+// double iops_tracker_get_wthroughput(IOPSTracker *tracker, QemuMutex *mutex) 
+// {
+//     double throughput = 0;
+//     int64_t now_ns = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
+
+//     qemu_mutex_lock(mutex);
+//     throughput = tracker->wio_size * 1e9 / (now_ns - tracker->start_time_ns);
+//     tracker->wio_size = 0;
+//     tracker->start_time_ns = now_ns;
+//     qemu_mutex_unlock(mutex);
+    
+//     return throughput;
+// }
+
+// /* Calculate the IO per second and re-initialize the tracker to 0 */
+// double iops_tracker_get_rwthroughput(IOPSTracker *tracker, QemuMutex *mutex) 
+// {
+//     double throughput = 0;
+//     int64_t now_ns = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
+
+//     qemu_mutex_lock(mutex);
+//     throughput = (tracker->wio_size + tracker->rio_size) * 1e9 / 2 * (now_ns - tracker->start_time_ns);
+//     tracker->wio_size = 0;
+//     tracker->rio_size = 0;
+//     tracker->start_time_ns = now_ns;
+//     qemu_mutex_unlock(mutex);
+    
+//     return throughput;
+// }
+
+// // Update total_wait_time and return total
+// int64_t iops_update_wait_time(IOPSTracker *tracker, int64_t pause_time, QemuMutex *mutex)
+// {
+//     qemu_mutex_lock(mutex);
+//     tracker->total_wait_time_ns += pause_time;
+//     qemu_mutex_unlock(mutex);
+//     return tracker->total_wait_time_ns;
+// }

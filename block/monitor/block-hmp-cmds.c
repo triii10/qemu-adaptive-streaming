@@ -500,7 +500,7 @@ void hmp_block_stream(Monitor *mon, const QDict *qdict)
     bool has_adaptive_threshold = qdict_haskey(qdict, "adaptive-threshold");
     int64_t adaptive_threshold = qdict_get_try_int(qdict, "adaptive-threshold", 0);
     bool has_pause_time = qdict_haskey(qdict, "pause-time");
-    int64_t pause_time = qdict_get_try_int(qdict, "pause-time", 0);
+    int64_t pause_time = qdict_get_try_int(qdict, "pause-time", 20);
 
     qmp_block_stream(device, device, base, NULL, NULL, false, false, NULL,
                      qdict_haskey(qdict, "speed"), speed,
@@ -836,11 +836,14 @@ void hmp_info_block_jobs(Monitor *mon, const QDict *qdict)
         if (list->value->type == JOB_TYPE_STREAM) {
             monitor_printf(mon, "Streaming device %s: Completed %" PRId64
                            " of %" PRId64 " bytes, speed limit %" PRId64
-                           " bytes/s\n",
+                           " bytes/s, status %" PRIu32 ", busy %" PRId32 ", paused: %" PRId32 "\n",
                            list->value->device,
                            list->value->offset,
                            list->value->len,
-                           list->value->speed);
+                           list->value->speed,
+                           list->value->status,
+                           list->value->busy,
+                           list->value->paused);
         } else {
             monitor_printf(mon, "Type %s, device %s: Completed %" PRId64
                            " of %" PRId64 " bytes, speed limit %" PRId64

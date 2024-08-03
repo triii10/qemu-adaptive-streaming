@@ -227,4 +227,36 @@ int coroutine_fn blk_co_truncate(BlockBackend *blk, int64_t offset, bool exact,
                                  PreallocMode prealloc, BdrvRequestFlags flags,
                                  Error **errp);
 
+bool is_iops_tracker_enabled(BlockDriverState *bs);
+
+bool enable_iops_tracker(BlockDriverState *bs);
+
+bool disable_iops_tracker(BlockDriverState *bs);
+
+/* Initialize the IOPS tracker for each device */
+IOPSTracker* iops_tracker_new(void);
+
+/* Initialize the IOPS tracker for each device */
+void iops_tracker_init(IOPSTracker *tracker);
+
+/* Update the tracker whenever each ops is performed */
+void iops_tracker_update_read(BlockDriverState *bs, int64_t block_size);
+
+/* Update the tracker whenever each ops is performed */
+void iops_tracker_update_write(BlockDriverState *bs, int64_t block_size);
+
+/* Calculate the IO per second and re-initialize the tracker to 0 */
+double iops_tracker_get_rthroughput(BlockDriverState *bs);
+
+/* Calculate the IO per second and re-initialize the tracker to 0 */
+double iops_tracker_get_wthroughput(BlockDriverState *bs);
+
+/* Calculate the IO per second and re-initialize the tracker to 0 */
+double iops_tracker_get_rwthroughput(BlockDriverState *bs);
+
+/* Calculate the total wait time */
+int64_t iops_update_wait_time(BlockDriverState *bs, int64_t pause_time);
+
+int64_t iops_get_total_wait_time(BlockDriverState *bs);
+
 #endif /* BLOCK_BACKEND_IO_H */

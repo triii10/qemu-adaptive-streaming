@@ -633,21 +633,24 @@ AioContext *block_job_get_aio_context(BlockJob *job)
     Check if the IOPS is currently within limit, then resume job
     If not, pause the job and wait for IOPS to recover.
 */
-void block_job_adaptive_pause(BlockJob *job, BlockDriverState* bs, int64_t threshold, int64_t pause_time)
+void block_job_adaptive_pause(BlockJob *job, BlockDriverState *bs, int64_t threshold, int64_t pause_time)
 {
     if (!pause_time)
         return;
-    uint64_t delay_ns = pause_time*1000000000ULL;
-    do {
-        double current_throughput = iops_tracker_get_throughput(bs->iops_tracker, &bs->iops_lock);
-        if (current_throughput > threshold) {
-            double current_time = qemu_clock_get_ns(QEMU_CLOCK_REALTIME)/1000000000ULL;
-            time_t seconds = (time_t)current_time;
-            struct tm *ptm = gmtime(&seconds);
-            qemu_log("Current throughput per nanosecond is above %ld: %f at time %02d:%02d:%02d, PAUSING JOB\n", threshold, current_throughput, ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
-            job_sleep_ns(&job->job, delay_ns);
-        }
-        else
-            delay_ns = 0;
-    } while (delay_ns && !job_is_cancelled(&job->job));
+    // Suspending adaptive streaming if streaming has waited for a total of 10 minutes
+    if (iops_get_total_wait_time(bs) >= 600) {
+        if (disable_iops_tracker(bs))
+            qemu_log("Disabling adaptive streaming for block device");
+        return;
+    }
+
+    double current_throughput = iops_tracker_get_rwthroughput(bs);
+    if (current_throughput > threshold) 
+    {
+        time_t seconds = qemu_clock_get_ns(QEMU_CLOCK_REALTIME)/1e9;
+        struct tm *ptm = gmtime(&seconds);
+        qemu_log("%02d:%02d:%02d - Current throughput per nanosecond is above %ld: %f, PAUSING JOB\n", ptm->tm_hour, ptm->tm_min, ptm->tm_sec, threshold, current_throughput);
+        job_sleep_ns(&job->job, pause_time*1e9);
+        iops_update_wait_time(bs, pause_time);
+    }
 }

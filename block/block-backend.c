@@ -92,6 +92,11 @@ struct BlockBackend {
      * Accessed with atomic ops.
      */
     unsigned int in_flight;
+
+    // /* Stucture to track the IOPS per drive*/
+    // QemuMutex iops_lock;
+    // IOPSTracker *iops_tracker;
+    // bool track_io;
 };
 
 typedef struct BlockBackendAIOCB {
@@ -368,9 +373,13 @@ BlockBackend *blk_new(AioContext *ctx, uint64_t perm, uint64_t shared_perm)
     blk->on_read_error = BLOCKDEV_ON_ERROR_REPORT;
     blk->on_write_error = BLOCKDEV_ON_ERROR_ENOSPC;
 
+    // blk->iops_tracker = iops_tracker_new();
+
     block_acct_init(&blk->stats);
 
     qemu_mutex_init(&blk->queued_requests_lock);
+    // qemu_mutex_init(&blk->iops_lock);
+    // disable_iops_tracker(blk);
     qemu_co_queue_init(&blk->queued_requests);
     notifier_list_init(&blk->remove_bs_notifiers);
     notifier_list_init(&blk->insert_bs_notifiers);
@@ -1598,27 +1607,81 @@ static BlockAIOCB *blk_aio_prwv(BlockBackend *blk, int64_t offset,
     return &acb->common;
 }
 
+// bool printed2 = false, printed4 = false;
+// BlockDriverState* prevOverlay = NULL;
 static void coroutine_fn blk_aio_read_entry(void *opaque)
 {
     BlkAioEmAIOCB *acb = opaque;
     BlkRwCo *rwco = &acb->rwco;
     QEMUIOVector *qiov = rwco->iobuf;
+    BlockDriverState *bs = blk_bs(rwco->blk);
 
     assert(qiov->size == acb->bytes);
     rwco->ret = blk_co_do_preadv_part(rwco->blk, rwco->offset, acb->bytes, qiov,
                                       0, rwco->flags);
+    
+    // if (!printed2) {
+    //     qemu_log("R BlockBackend rwco->blk in BlockBackend: %p\n", (void *)rwco->blk);
+    //     qemu_log("R BlockDriverState in BlockBackend: %p\n", (void *)bs);
+    //     printed2 = true;
+    //     qemu_log("R BlockDriverState Variables: %d,%ld,%ld\n", bs->track_io, bs->iops_tracker->rio_size, bs->iops_tracker->wio_size);
+    //     qemu_log("R ACB Variables: %ld\n", acb->bytes);
+    // }
+    // // Trilok: This is the entry point of Read IO from the HW.
+
+    // if (!printed4 && is_iops_tracker_enabled(bs)) {
+    //     qemu_log("R BlockDriverState Variables: %d,%ld,%ld\n", bs->track_io, bs->iops_tracker->rio_size, bs->iops_tracker->wio_size);
+    //     printed4 = true;
+    // }
+
+    // if (prevOverlay != bs) {
+    //     qemu_log("Overlay Changed\n");
+    //     qemu_log("R BlockDriverState in BlockBackend: %p\n", (void *)bs);
+    //     qemu_log("R BlockDriverState Variables: %d,%ld,%ld\n", bs->track_io, bs->iops_tracker->rio_size, bs->iops_tracker->wio_size);
+    //     prevOverlay = bs;
+    // }
+
+    if (bs && is_iops_tracker_enabled(bs))
+        iops_tracker_update_read(bs, acb->bytes);
     blk_aio_complete(acb);
 }
 
+// bool printed = false, printed3 = false;
+// BlockDriverState* prevOverlay2 = NULL;
 static void coroutine_fn blk_aio_write_entry(void *opaque)
 {
     BlkAioEmAIOCB *acb = opaque;
     BlkRwCo *rwco = &acb->rwco;
     QEMUIOVector *qiov = rwco->iobuf;
+    BlockDriverState *bs = blk_bs(rwco->blk);
 
     assert(!qiov || qiov->size == acb->bytes);
     rwco->ret = blk_co_do_pwritev_part(rwco->blk, rwco->offset, acb->bytes,
                                        qiov, 0, rwco->flags);
+
+    // if (!printed) {
+    //     qemu_log("W BlockBackend rwco->blk in BlockBackend: %p\n", (void *)rwco->blk);
+    //     qemu_log("W BlockDriverState in BlockBackend: %p\n", (void *)bs);
+    //     qemu_log("W BlockDriverState Variables: %d,%ld,%ld\n", bs->track_io, bs->iops_tracker->rio_size, bs->iops_tracker->wio_size);
+    //     qemu_log("W ACB Variables: %ld\n", acb->bytes);
+    //     printed = true;
+    // }
+
+    // if (!printed3 && is_iops_tracker_enabled(bs)) {
+    //     qemu_log("W BlockDriverState Variables: %d,%ld,%ld\n", bs->track_io, bs->iops_tracker->rio_size, bs->iops_tracker->wio_size);
+    //     printed3 = true;
+    // }
+    // if (prevOverlay2 != bs) {
+    //     qemu_log("Overlay Changed\n");
+    //     prevOverlay2 = bs;
+    //     qemu_log("W BlockDriverState in BlockBackend: %p\n", (void *)bs);
+    //     qemu_log("W BlockDriverState Variables: %d,%ld,%ld\n", bs->track_io, bs->iops_tracker->rio_size, bs->iops_tracker->wio_size);
+    // }
+
+    // Trilok: This is the entry point of Write IO from the HW.
+    if (bs && is_iops_tracker_enabled(bs))
+        iops_tracker_update_write(bs, acb->bytes);
+
     blk_aio_complete(acb);
 }
 
@@ -1708,6 +1771,11 @@ BlockAIOCB *blk_aio_pwritev(BlockBackend *blk, int64_t offset,
 {
     IO_CODE();
     assert((uint64_t)qiov->size <= INT64_MAX);
+    
+    // // Trilok: This is the entry point of Read IO from the HW.
+    // if (is_iops_tracker_enabled(blk))
+    //     iops_tracker_update_write(blk, qiov->size);
+
     return blk_aio_prwv(blk, offset, qiov->size, qiov,
                         blk_aio_write_entry, flags, cb, opaque);
 }
@@ -2896,4 +2964,126 @@ int blk_make_empty(BlockBackend *blk, Error **errp)
     }
 
     return bdrv_make_empty(blk->root, errp);
+}
+
+bool enable_iops_tracker(BlockDriverState *bs)
+{
+    if (!bs->track_io) {
+        bs->track_io = true;
+        bs->iops_tracker = iops_tracker_new();
+        return true;
+    }
+    return false;
+}
+
+bool is_iops_tracker_enabled(BlockDriverState *bs)
+{
+    return bs->track_io;
+}
+
+bool disable_iops_tracker(BlockDriverState *bs)
+{
+    if (bs->track_io) {
+        bs->track_io = false;
+        return true;
+    }
+    return false;
+}
+
+IOPSTracker *iops_tracker_new(void)
+{
+    IOPSTracker *tracker = g_new0(IOPSTracker, 1);
+    iops_tracker_init(tracker);
+    return tracker;
+}
+
+/* Initialize the IOPS tracker for each device */
+void iops_tracker_init(IOPSTracker *tracker) {
+    tracker->rio_size = 0;
+    tracker->wio_size = 0;
+    tracker->start_time_ns = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
+    tracker->total_wait_time_ns = 0;
+}
+
+/* Update the tracker whenever each ops is performed */
+void iops_tracker_update_read(BlockDriverState *bs, int64_t block_size) 
+{
+    IOPSTracker *tracker = bs->iops_tracker;
+    qemu_mutex_lock(&bs->iops_lock);
+    tracker->rio_size += block_size;
+    qemu_mutex_unlock(&bs->iops_lock);
+}
+
+/* Update the tracker whenever each ops is performed */
+void iops_tracker_update_write(BlockDriverState *bs, int64_t block_size) 
+{
+    IOPSTracker *tracker = bs->iops_tracker;
+    qemu_mutex_lock(&bs->iops_lock);
+    tracker->wio_size += block_size;
+    qemu_mutex_unlock(&bs->iops_lock);
+}
+
+/* Calculate the IO per second and re-initialize the tracker to 0 */
+double iops_tracker_get_rthroughput(BlockDriverState *bs) 
+{
+    IOPSTracker *tracker = bs->iops_tracker;
+    double throughput = 0;
+    int64_t now_ns = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
+
+    qemu_mutex_lock(&bs->iops_lock);
+    throughput = tracker->rio_size * 1e9 / (now_ns - tracker->start_time_ns);
+    tracker->rio_size = 0;
+    tracker->start_time_ns = now_ns;
+    qemu_mutex_unlock(&bs->iops_lock);
+    
+    return throughput;
+}
+
+/* Calculate the IO per second and re-initialize the tracker to 0 */
+double iops_tracker_get_wthroughput(BlockDriverState *bs) 
+{
+    IOPSTracker *tracker = bs->iops_tracker;
+    double throughput = 0;
+    int64_t now_ns = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
+
+    qemu_mutex_lock(&bs->iops_lock);
+    throughput = tracker->wio_size * 1e9 / (now_ns - tracker->start_time_ns);
+    tracker->wio_size = 0;
+    tracker->start_time_ns = now_ns;
+    qemu_mutex_unlock(&bs->iops_lock);
+    
+    return throughput;
+}
+
+/* Calculate the IO per second and re-initialize the tracker to 0 */
+double iops_tracker_get_rwthroughput(BlockDriverState *bs) 
+{
+    IOPSTracker *tracker = bs->iops_tracker;
+    double throughput = 0;
+    int64_t now_ns = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
+
+    qemu_mutex_lock(&bs->iops_lock);
+    throughput = (tracker->wio_size + tracker->rio_size) * 1e9 / (2 * (now_ns - tracker->start_time_ns));
+    tracker->wio_size = 0;
+    tracker->rio_size = 0;
+    tracker->start_time_ns = now_ns;
+    qemu_mutex_unlock(&bs->iops_lock);
+    
+    return throughput;
+}
+
+// Update total_wait_time and return total
+int64_t iops_update_wait_time(BlockDriverState *bs, int64_t pause_time)
+{
+    IOPSTracker *tracker = bs->iops_tracker;
+    qemu_mutex_lock(&bs->iops_lock);
+    tracker->total_wait_time_ns += pause_time;
+    qemu_mutex_unlock(&bs->iops_lock);
+    return tracker->total_wait_time_ns;
+}
+
+int64_t iops_get_total_wait_time(BlockDriverState *bs)
+{
+    IOPSTracker *tracker = bs->iops_tracker;
+    return tracker->total_wait_time_ns;
 }

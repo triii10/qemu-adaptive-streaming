@@ -2414,6 +2414,9 @@ void qmp_block_stream(const char *job_id, const char *device,
         job_flags |= JOB_MANUAL_DISMISS;
     }
 
+    if (has_adaptive_stream && !has_pause_time)
+        pause_time = 10;
+
     stream_start(job_id, bs, base_bs, backing_file,
                  backing_mask_protocol,
                  bottom_bs, job_flags, has_speed ? speed : 0, on_error,

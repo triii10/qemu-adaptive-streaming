@@ -836,14 +836,12 @@ void hmp_info_block_jobs(Monitor *mon, const QDict *qdict)
         if (list->value->type == JOB_TYPE_STREAM) {
             monitor_printf(mon, "Streaming device %s: Completed %" PRId64
                            " of %" PRId64 " bytes, speed limit %" PRId64
-                           " bytes/s, status %" PRIu32 ", busy %" PRId32 ", paused: %" PRId32 "\n",
+                           " bytes/s, status %" PRIu32 "\n",
                            list->value->device,
                            list->value->offset,
                            list->value->len,
                            list->value->speed,
-                           list->value->status,
-                           list->value->busy,
-                           list->value->paused);
+                           list->value->status);
         } else {
             monitor_printf(mon, "Type %s, device %s: Completed %" PRId64
                            " of %" PRId64 " bytes, speed limit %" PRId64

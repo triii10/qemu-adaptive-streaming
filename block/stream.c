@@ -166,11 +166,15 @@ static int coroutine_fn stream_run(Job *job, Error **errp)
 {
     StreamBlockJob *s = container_of(job, StreamBlockJob, common.job);
     BlockDriverState *unfiltered_bs;
-    BlockDriverState *tracking_overlay;
+    BlockDriverState *tracking_overlay = s->cor_filter_bs;
     int64_t len;
     int64_t offset = 0;
     int error = 0;
     int64_t n = 0; /* bytes */
+
+    // For logging time
+    time_t seconds;
+    struct tm *ptm;
 
     WITH_GRAPH_RDLOCK_GUARD() {
         unfiltered_bs = bdrv_skip_filters(s->target_bs);
@@ -187,28 +191,17 @@ static int coroutine_fn stream_run(Job *job, Error **errp)
     job_progress_set_remaining(&s->common.job, len);
     
     // Start IO tracking
-    tracking_overlay = s->cor_filter_bs;
-    if (s->adaptive_stream && enable_iops_tracker(tracking_overlay))
-        qemu_log("IO tracking started\n");
+    if (s->adaptive_stream && enable_iops_tracker(tracking_overlay)) {
+        seconds = qemu_clock_get_ns(QEMU_CLOCK_REALTIME)/1e9;
+        ptm = gmtime(&seconds);
+        qemu_log("%02d:%02d:%02d - IO tracking started\n", ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
+    }
     if (is_iops_tracker_enabled(tracking_overlay) && !s->adaptive_threshold) 
     {
-        time_t seconds = qemu_clock_get_ns(QEMU_CLOCK_REALTIME)/1e9;
-        struct tm *ptm = gmtime(&seconds);
-        qemu_log("%02d:%02d:%02d - IO tracking started\n", ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
         // Plug in code here to monitor the current throughput for 10 seconds
         // Identify the maximum and average throughput.
         // Need to device a logic, where streaming is paused if the I/O througput goes below a certain threshold
         // How to figure that out? 
-
-        if (false)
-        {
-            // Let's monitor the bw for 10 seconds
-            job_sleep_ns(&s->common.job, 10e9);
-            s->adaptive_threshold = iops_tracker_get_rwthroughput(tracking_overlay) * 0.9;
-            seconds = qemu_clock_get_ns(QEMU_CLOCK_REALTIME)/1e9;
-            ptm = gmtime(&seconds);
-            qemu_log("%02d:%02d:%02d - Adaptive Threshold set as : %ld\n", ptm->tm_hour, ptm->tm_min, ptm->tm_sec, s->adaptive_threshold);
-        }
 
         if (true)
         {
@@ -217,14 +210,6 @@ static int coroutine_fn stream_run(Job *job, Error **errp)
             {
                 job_sleep_ns(&s->common.job, 5e9);
                 double threshold = iops_tracker_get_rwthroughput(tracking_overlay) * 0.5;
-                // qemu_log("BlockBackend for Stream: %p\n", (void *)s->blk);
-                // qemu_log("BlockDriverState unfiltered_bs for Stream: %p\n", (void *)unfiltered_bs);
-                // qemu_log("BlockDriverState base_overlay for Stream: %p\n", (void *)s->base_overlay);
-                // qemu_log("BlockDriverState cor_filter_bs for Stream: %p\n", (void *)s->cor_filter_bs);
-                // qemu_log("BlockDriverState target_bs for Stream: %p\n", (void *)s->target_bs);
-                // qemu_log("BlockDriverState above_base for Stream: %p\n", (void *)s->above_base);
-                // qemu_log("R BlockDriverState Variables: %d,%ld,%ld\n", tracking_overlay->track_io, tracking_overlay->iops_tracker->rio_size, tracking_overlay->iops_tracker->wio_size);
-                // qemu_log("R ACB Variables: %ld", bytes);
                 seconds = qemu_clock_get_ns(QEMU_CLOCK_REALTIME)/1e9;
                 ptm = gmtime(&seconds);
                 qemu_log("%02d:%02d:%02d - Adaptive Threshold set as : %f\n", ptm->tm_hour, ptm->tm_min, ptm->tm_sec, threshold);
@@ -310,15 +295,16 @@ static int coroutine_fn stream_run(Job *job, Error **errp)
         /* Publish progress */
         job_progress_update(&s->common.job, n);
         if (copy) {
-            // Remove the copied bytes from the IO tracker. We don't want to count them from the streaming job.
-            // iops_tracker_update(unfiltered_bs->iops_tracker, -n, &unfiltered_bs->iops_lock);
             block_job_ratelimit_processed_bytes(&s->common, n);
         }
     }
 
     // Stop IO tracking
-    if (disable_iops_tracker(tracking_overlay))
-        qemu_log("IO tracking stopped\n");
+    if (disable_iops_tracker(tracking_overlay)){
+        seconds = qemu_clock_get_ns(QEMU_CLOCK_REALTIME)/1e9;
+        ptm = gmtime(&seconds);
+        qemu_log("%02d:%02d:%02d - IO Tracking stopped", ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
+    }
         
     /* Do not remove the backing file if an error was there but ignored. */
     return error;

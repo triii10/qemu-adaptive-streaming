@@ -92,11 +92,6 @@ struct BlockBackend {
      * Accessed with atomic ops.
      */
     unsigned int in_flight;
-
-    // /* Stucture to track the IOPS per drive*/
-    // QemuMutex iops_lock;
-    // IOPSTracker *iops_tracker;
-    // bool track_io;
 };
 
 typedef struct BlockBackendAIOCB {
@@ -373,13 +368,9 @@ BlockBackend *blk_new(AioContext *ctx, uint64_t perm, uint64_t shared_perm)
     blk->on_read_error = BLOCKDEV_ON_ERROR_REPORT;
     blk->on_write_error = BLOCKDEV_ON_ERROR_ENOSPC;
 
-    // blk->iops_tracker = iops_tracker_new();
-
     block_acct_init(&blk->stats);
 
     qemu_mutex_init(&blk->queued_requests_lock);
-    // qemu_mutex_init(&blk->iops_lock);
-    // disable_iops_tracker(blk);
     qemu_co_queue_init(&blk->queued_requests);
     notifier_list_init(&blk->remove_bs_notifiers);
     notifier_list_init(&blk->insert_bs_notifiers);
@@ -1607,8 +1598,6 @@ static BlockAIOCB *blk_aio_prwv(BlockBackend *blk, int64_t offset,
     return &acb->common;
 }
 
-// bool printed2 = false, printed4 = false;
-// BlockDriverState* prevOverlay = NULL;
 static void coroutine_fn blk_aio_read_entry(void *opaque)
 {
     BlkAioEmAIOCB *acb = opaque;
@@ -1619,35 +1608,11 @@ static void coroutine_fn blk_aio_read_entry(void *opaque)
     assert(qiov->size == acb->bytes);
     rwco->ret = blk_co_do_preadv_part(rwco->blk, rwco->offset, acb->bytes, qiov,
                                       0, rwco->flags);
-    
-    // if (!printed2) {
-    //     qemu_log("R BlockBackend rwco->blk in BlockBackend: %p\n", (void *)rwco->blk);
-    //     qemu_log("R BlockDriverState in BlockBackend: %p\n", (void *)bs);
-    //     printed2 = true;
-    //     qemu_log("R BlockDriverState Variables: %d,%ld,%ld\n", bs->track_io, bs->iops_tracker->rio_size, bs->iops_tracker->wio_size);
-    //     qemu_log("R ACB Variables: %ld\n", acb->bytes);
-    // }
-    // // Trilok: This is the entry point of Read IO from the HW.
-
-    // if (!printed4 && is_iops_tracker_enabled(bs)) {
-    //     qemu_log("R BlockDriverState Variables: %d,%ld,%ld\n", bs->track_io, bs->iops_tracker->rio_size, bs->iops_tracker->wio_size);
-    //     printed4 = true;
-    // }
-
-    // if (prevOverlay != bs) {
-    //     qemu_log("Overlay Changed\n");
-    //     qemu_log("R BlockDriverState in BlockBackend: %p\n", (void *)bs);
-    //     qemu_log("R BlockDriverState Variables: %d,%ld,%ld\n", bs->track_io, bs->iops_tracker->rio_size, bs->iops_tracker->wio_size);
-    //     prevOverlay = bs;
-    // }
-
     if (bs && is_iops_tracker_enabled(bs))
         iops_tracker_update_read(bs, acb->bytes);
     blk_aio_complete(acb);
 }
 
-// bool printed = false, printed3 = false;
-// BlockDriverState* prevOverlay2 = NULL;
 static void coroutine_fn blk_aio_write_entry(void *opaque)
 {
     BlkAioEmAIOCB *acb = opaque;
@@ -1659,26 +1624,6 @@ static void coroutine_fn blk_aio_write_entry(void *opaque)
     rwco->ret = blk_co_do_pwritev_part(rwco->blk, rwco->offset, acb->bytes,
                                        qiov, 0, rwco->flags);
 
-    // if (!printed) {
-    //     qemu_log("W BlockBackend rwco->blk in BlockBackend: %p\n", (void *)rwco->blk);
-    //     qemu_log("W BlockDriverState in BlockBackend: %p\n", (void *)bs);
-    //     qemu_log("W BlockDriverState Variables: %d,%ld,%ld\n", bs->track_io, bs->iops_tracker->rio_size, bs->iops_tracker->wio_size);
-    //     qemu_log("W ACB Variables: %ld\n", acb->bytes);
-    //     printed = true;
-    // }
-
-    // if (!printed3 && is_iops_tracker_enabled(bs)) {
-    //     qemu_log("W BlockDriverState Variables: %d,%ld,%ld\n", bs->track_io, bs->iops_tracker->rio_size, bs->iops_tracker->wio_size);
-    //     printed3 = true;
-    // }
-    // if (prevOverlay2 != bs) {
-    //     qemu_log("Overlay Changed\n");
-    //     prevOverlay2 = bs;
-    //     qemu_log("W BlockDriverState in BlockBackend: %p\n", (void *)bs);
-    //     qemu_log("W BlockDriverState Variables: %d,%ld,%ld\n", bs->track_io, bs->iops_tracker->rio_size, bs->iops_tracker->wio_size);
-    // }
-
-    // Trilok: This is the entry point of Write IO from the HW.
     if (bs && is_iops_tracker_enabled(bs))
         iops_tracker_update_write(bs, acb->bytes);
 
@@ -1771,11 +1716,6 @@ BlockAIOCB *blk_aio_pwritev(BlockBackend *blk, int64_t offset,
 {
     IO_CODE();
     assert((uint64_t)qiov->size <= INT64_MAX);
-    
-    // // Trilok: This is the entry point of Read IO from the HW.
-    // if (is_iops_tracker_enabled(blk))
-    //     iops_tracker_update_write(blk, qiov->size);
-
     return blk_aio_prwv(blk, offset, qiov->size, qiov,
                         blk_aio_write_entry, flags, cb, opaque);
 }

@@ -639,7 +639,6 @@ static void coroutine_fn job_pause_point_locked(Job *job)
         job->driver->resume(job);
         job_lock();
     }
-    qemu_log("job status: %d\n", job->status);
 }
 
 void coroutine_fn job_pause_point(Job *job)

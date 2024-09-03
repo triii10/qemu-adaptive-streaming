@@ -237,6 +237,6 @@ const BlockJobDriver *block_job_driver(BlockJob *job);
 
 /* Trilok's function to implement adaptive pause here
 */
-void block_job_adaptive_pause(BlockJob *job, BlockDriverState *tracking_overlay, int64_t threshold, int64_t pause_time);
+void block_job_adaptive_pause(BlockJob *job, BlockDriverState *tracking_overlay, double threshold, int64_t pause_time);
 
 #endif

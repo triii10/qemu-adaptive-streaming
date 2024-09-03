@@ -71,7 +71,7 @@ void stream_start(const char *job_id, BlockDriverState *bs,
                   int creation_flags, int64_t speed,
                   BlockdevOnError on_error,
                   const char *filter_node_name,
-                  bool adaptive_stream, int64_t adaptive_threshold, int64_t pause_time,
+                  bool adaptive_stream, double adaptive_threshold, int64_t pause_time,
                   Error **errp);
 
 /**

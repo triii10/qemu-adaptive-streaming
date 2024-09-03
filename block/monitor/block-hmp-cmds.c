@@ -498,14 +498,14 @@ void hmp_block_stream(Monitor *mon, const QDict *qdict)
     bool has_adaptive_stream = qdict_haskey(qdict, "adaptive-stream");
     bool adaptive_stream = qdict_get_try_bool(qdict, "adaptive-stream", false);
     bool has_adaptive_threshold = qdict_haskey(qdict, "adaptive-threshold");
-    int64_t adaptive_threshold = qdict_get_try_int(qdict, "adaptive-threshold", 0);
+    double adaptive_threshold = qdict_get_try_int(qdict, "adaptive-threshold", 0);
     bool has_pause_time = qdict_haskey(qdict, "pause-time");
     int64_t pause_time = qdict_get_try_int(qdict, "pause-time", 20);
 
     qmp_block_stream(device, device, base, NULL, NULL, false, false, NULL,
                      qdict_haskey(qdict, "speed"), speed,
                      true, BLOCKDEV_ON_ERROR_REPORT, NULL,
-                     false, false, false, false, has_adaptive_stream, adaptive_stream, has_adaptive_threshold,adaptive_threshold, has_pause_time, pause_time, &error);
+                     false, false, false, false, has_adaptive_stream, adaptive_stream, has_adaptive_threshold, adaptive_threshold, has_pause_time, pause_time, &error);
 
     hmp_handle_error(mon, error);
 }

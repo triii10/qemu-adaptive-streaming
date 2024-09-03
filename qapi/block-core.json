@@ -2856,7 +2856,9 @@
 # @adaptive-stream: If true, the stream job will pause during periods of high 
 #     I/O activity.
 #
-# @adaptive-threshold: The maximum bytes per second to tolerate before streaming is paused
+# @adaptive-threshold: If set to a positive integer greater than 1, the maximum 
+#     bytes per second to tolerate before streaming is paused. Else assumed as the 
+#     percentage to consider for calculating the threshold. Defaults to 0.3.
 #
 # @pause-time: The number of seconds to wait before resuming streaming after pausing
 #
@@ -2880,7 +2882,7 @@
             '*speed': 'int', '*on-error': 'BlockdevOnError',
             '*filter-node-name': 'str',
             '*auto-finalize': 'bool', '*auto-dismiss': 'bool',
-            '*adaptive-stream': 'bool', '*adaptive-threshold': 'int', '*pause-time': 'int' },
+            '*adaptive-stream': 'bool', '*adaptive-threshold': 'number', '*pause-time': 'int' },
   'allow-preconfig': true }
 
 ##

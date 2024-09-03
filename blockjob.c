@@ -633,7 +633,7 @@ AioContext *block_job_get_aio_context(BlockJob *job)
     Check if the IOPS is currently within limit, then resume job
     If not, pause the job and wait for IOPS to recover.
 */
-void block_job_adaptive_pause(BlockJob *job, BlockDriverState *bs, int64_t threshold, int64_t pause_time)
+void block_job_adaptive_pause(BlockJob *job, BlockDriverState *bs, double threshold, int64_t pause_time)
 {
     if (!pause_time)
         return;
@@ -649,7 +649,7 @@ void block_job_adaptive_pause(BlockJob *job, BlockDriverState *bs, int64_t thres
     {
         time_t seconds = qemu_clock_get_ns(QEMU_CLOCK_REALTIME)/1e9;
         struct tm *ptm = gmtime(&seconds);
-        qemu_log("%02d:%02d:%02d - Current throughput per nanosecond is above %ld: %f, PAUSING JOB\n", ptm->tm_hour, ptm->tm_min, ptm->tm_sec, threshold, current_throughput);
+        qemu_log("%02d:%02d:%02d - Current throughput per nanosecond is above %lf: %lf, PAUSING JOB\n", ptm->tm_hour, ptm->tm_min, ptm->tm_sec, threshold, current_throughput);
         job_sleep_ns(&job->job, pause_time*1e9);
         iops_update_wait_time(bs, pause_time);
     }

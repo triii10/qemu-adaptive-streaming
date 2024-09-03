@@ -42,7 +42,7 @@ typedef struct StreamBlockJob {
     bool backing_mask_protocol;
     bool bs_read_only;
     bool adaptive_stream;
-    int64_t adaptive_threshold;
+    double adaptive_threshold;
     int64_t pause_time;
 } StreamBlockJob;
 
@@ -196,28 +196,23 @@ static int coroutine_fn stream_run(Job *job, Error **errp)
         ptm = gmtime(&seconds);
         qemu_log("%02d:%02d:%02d - IO tracking started\n", ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
     }
-    if (is_iops_tracker_enabled(tracking_overlay) && !s->adaptive_threshold) 
+    if (is_iops_tracker_enabled(tracking_overlay) && s->adaptive_threshold < 1) 
     {
-        // Plug in code here to monitor the current throughput for 10 seconds
-        // Identify the maximum and average throughput.
-        // Need to device a logic, where streaming is paused if the I/O througput goes below a certain threshold
-        // How to figure that out? 
-
-        if (true)
+        // Idea 2 - take 3 threshold samples for 5 seconds and then average it.
+        double threshold_percentage = 0.3, threshold = 0;
+        qemu_log("Adaptive Threshold Percentage is : %lf\n", s->adaptive_threshold);
+        threshold_percentage = s->adaptive_threshold;
+        for (int i = 0; i < 3; i++)
         {
-            // Idea 2 - take 3 threshold samples for 5 seconds and then average it.
-            for (int i = 0; i < 3; i++)
-            {
-                job_sleep_ns(&s->common.job, 5e9);
-                double threshold = iops_tracker_get_rwthroughput(tracking_overlay) * 0.5;
-                seconds = qemu_clock_get_ns(QEMU_CLOCK_REALTIME)/1e9;
-                ptm = gmtime(&seconds);
-                qemu_log("%02d:%02d:%02d - Adaptive Threshold set as : %f\n", ptm->tm_hour, ptm->tm_min, ptm->tm_sec, threshold);
-                s->adaptive_threshold += threshold;
-            }
-            s->adaptive_threshold /= 3;
+            job_sleep_ns(&s->common.job, 5e9);
+            threshold += iops_tracker_get_rwthroughput(tracking_overlay) * threshold_percentage;
+            seconds = qemu_clock_get_ns(QEMU_CLOCK_REALTIME)/1e9;
+            ptm = gmtime(&seconds);
         }
+        s->adaptive_threshold = threshold / 3;
     }
+    if (is_iops_tracker_enabled(tracking_overlay))
+        qemu_log("%02d:%02d:%02d - Adaptive Threshold set as : %lf\n", ptm->tm_hour, ptm->tm_min, ptm->tm_sec, s->adaptive_threshold);
 
     // Till this point, all that has been done is basically 
     // initialize some variables, and get the unfiltered block state and it's length
@@ -329,7 +324,7 @@ void stream_start(const char *job_id, BlockDriverState *bs,
                   int creation_flags, int64_t speed,
                   BlockdevOnError on_error,
                   const char *filter_node_name,
-                  bool adaptive_stream, int64_t adaptive_threshold, int64_t pause_time,
+                  bool adaptive_stream, double adaptive_threshold, int64_t pause_time,
                   Error **errp)
 {
     StreamBlockJob *s = NULL;

@@ -2289,13 +2289,13 @@ void qmp_block_stream(const char *job_id, const char *device,
                       bool has_auto_finalize, bool auto_finalize,
                       bool has_auto_dismiss, bool auto_dismiss,
                       bool has_adaptive_stream, bool adaptive_stream, 
-                      bool has_adaptive_threshold, int64_t adaptive_threshold, 
+                      bool has_adaptive_threshold, double adaptive_threshold, 
                       bool has_pause_time, int64_t pause_time,
                       Error **errp)
 {
 
 
-    qemu_log("block_stream: device=%s base=%s speed=%ld adaptive=%d adaptive-threshold=%ld pause-time=%ld\n",
+    qemu_log("block_stream: device=%s base=%s speed=%ld adaptive=%d adaptive-threshold=%lf pause-time=%ld\n",
              device, base ? base : "", speed, adaptive_stream, adaptive_threshold, pause_time);
     BlockDriverState *bs, *iter, *iter_end;
     BlockDriverState *base_bs = NULL;

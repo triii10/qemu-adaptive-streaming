@@ -1,4 +1,16 @@
 ===========
+Project README
+===========
+The changes in this repository are a part of the dissertation submitted
+to The University of Manchester for the degree of Master of Science in 
+Advanced Computer Science by Trilok Bhattacharya.
+
+The dissertation report can be downloaded from - https://trilok.dev/Trilok_Bhattacharya_MSc_Dissertation.pdf
+
+Please reach out to me by sending me an email at hi@trilok.dev
+if you have any questions about this project or report.
+
+===========
 QEMU README
 ===========
 
